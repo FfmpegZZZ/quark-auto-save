@@ -71,39 +71,43 @@
           <div v-if="activeTab === 'config'">
             <div class="row title">
               <div class="col-10">
-                <h2><i class="bi bi-cookie"></i> Cookie</h2>
+                <h2 style="display: inline-block;"><i class="bi bi-shield-lock"></i> 账号配置</h2>
+                <small class="text-muted">所有账号都会执行转存任务，请确保账号有效</small>
               </div>
               <div class="col-2 text-right">
                 <button type="button" class="btn btn-outline-primary" @click="addCookie()">+</button>
               </div>
             </div>
-            <p>1. 所有账号执行签到，纯<a class="" href="https://github.com/Cp0204/quark-auto-save/wiki/使用技巧集锦#每日签到领空间">签到</a>只需移动端参数即可！</p>
-            <p>2. 仅第一个账号执行转存，请自行确认顺序。<b>最好是手机验证码<a target="_blank" href="https://pan.quark.cn/">登录</a>，CK比较完整！</b>如需签到参数附在CK后面。</p>
             <div v-for="(value, index) in formData.cookie" :key="index" class="input-group mb-2">
-              <input type="text" v-model="formData.cookie[index]" class="form-control" placeholder="打开 pan.quark.com 按 F12 抓取">
+              <div class="input-group-prepend">
+                <span class="input-group-text">账号{{index + 1}}</span>
+              </div>
+              <input type="text" v-model="formData.cookie[index]" class="form-control" placeholder="打开 pan.quark.com 按 F12 开发者工具抓取 Cookie">
               <div class="input-group-append">
                 <button type="button" class="btn btn-outline-danger" @click="removeCookie(index)">-</button>
               </div>
             </div>
+            <br>
 
             <div class="row title">
-              <div class="col">
-                <h2 style="display: inline-block;"><i class="bi bi-clock"></i> 定时规则</h2>
-                <span class="badge badge-pill badge-light">
-                  <a target="_blank" href="https://tool.lu/crontab/" title="CRON时间计算器">?</a>
-                </span>
+              <div class="col-8">
+                <h2 style="display: inline-block;"><i class="bi bi-clock-history"></i> 定时规则</h2>
+              </div>
+              <div class="col-4 text-right">
+                <a target="_blank" href="https://tool.lu/crontab/" class="btn btn-outline-info btn-sm">时间计算器</a>
               </div>
             </div>
-            <div class="input-group mb-2">
+            <div class="input-group">
               <div class="input-group-prepend">
                 <span class="input-group-text">Crontab</span>
               </div>
-              <input type="text" v-model="formData.crontab" class="form-control" placeholder="必填">
+              <input type="text" v-model="formData.crontab" class="form-control" placeholder="0 8,18,20 * * *">
             </div>
+            <br>
 
-            <div class="row title" title="通知推送，支持多个渠道，见Wiki">
+            <div class="row title">
               <div class="col-8">
-                <h2 style="display: inline-block;"><i class="bi bi-bell"></i> 通知</h2>
+                <h2 style="display: inline-block;"><i class="bi bi-bell-fill"></i> 通知推送</h2>
                 <span class="badge badge-pill badge-light">
                   <a href="https://github.com/Cp0204/quark-auto-save/wiki/通知推送服务配置" target="_blank">?</a>
                 </span>
@@ -227,47 +231,48 @@
 
           <div v-if="activeTab === 'tasklist'">
             <div class="row title">
-              <div class="col">
-                <h2>任务列表</h2>
+              <div class="col-6">
+                <h2 style="display: inline-block;"><i class="bi bi-list-task"></i> 任务列表</h2>
+              </div>
+              <div class="col-6 text-right">
+                <button type="button" class="btn btn-outline-primary" @click="addTask()">+ 增加任务</button>
               </div>
             </div>
-            <hr>
             <div class="row">
-              <div class="col-lg-6 col-md-12">
-                <div class="row">
-                  <label class="col-form-label col-md-3">名称筛选</label>
-                  <div class="input-group col-md-9">
-                    <input type="text" class="form-control" v-model="taskNameFilter" placeholder="名称 筛选/搜索">
-                    <div class="input-group-append">
-                      <button type="button" class="btn btn-outline-secondary" @click="clearData('taskNameFilter')"><i class="bi bi-x-lg"></i></button>
-                    </div>
+              <div class="col-6">
+                <div class="input-group mb-2">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">名称筛选</span>
+                  </div>
+                  <input type="text" class="form-control" v-model="taskNameFilter" placeholder="输入任务名称">
+                  <div class="input-group-append">
+                    <button type="button" class="btn btn-outline-secondary" @click="clearData('taskNameFilter')">清空</button>
                   </div>
                 </div>
               </div>
-              <div class="col-lg-6 col-md-12">
-                <div class="row">
-                  <label class="col-form-label col-md-3">路径筛选</label>
-                  <div class="input-group col-md-9">
-                    <select class="form-control" v-model="taskDirSelected">
-                      <option v-for="(dir, index) in taskDirs" :value="dir" v-html="dir"></option>
-                    </select>
-                    <div class="input-group-append">
-                      <button type="button" class="btn btn-outline-secondary" @click="clearData('taskDirSelected')"><i class="bi bi-x-lg"></i></button>
-                    </div>
+              <div class="col-6">
+                <div class="input-group mb-2">
+                  <div class="input-group-prepend">
+                    <span class="input-group-text">路径筛选</span>
+                  </div>
+                  <select class="form-control" v-model="taskDirSelected">
+                    <option v-for="(dir, index) in taskDirs" :value="dir" v-html="dir"></option>
+                  </select>
+                  <div class="input-group-append">
+                    <button type="button" class="btn btn-outline-secondary" @click="clearData('taskDirSelected')">清空</button>
                   </div>
                 </div>
               </div>
             </div>
-            <div v-for="(task, index) in formData.tasklist" :key="index" class="task mb-3">
+
+            <div v-for="(task, index) in formData.tasklist" :key="index" class="mb-4">
               <template v-if="(taskDirSelected == '' || getParentDirectory(task.savepath) == taskDirSelected) && task.taskname.includes(taskNameFilter)">
-                <hr>
-                <div class="form-group row" style="align-items:center">
-                  <div class="col pl-0" data-toggle="collapse" :data-target="'#collapse_'+index" aria-expanded="true" :aria-controls="'collapse_'+index">
-                    <div class="btn btn-block text-left">
-                      <i class="bi bi-caret-right-fill"></i> #<span v-html="`${index+1}: ${task.taskname}`"></span>
-                    </div>
+                <div class="row title" style="cursor: pointer;" data-toggle="collapse" :data-target="'#collapse_'+index" aria-expanded="false" :aria-controls="'collapse_'+index">
+                  <div class="col-8">
+                    <h3 style="display: inline-block;">#{{index+1}}: {{task.taskname}}</h3>
+                    <small class="text-muted">{{task.savepath}}</small>
                   </div>
-                  <div class="col-auto">
+                  <div class="col-4 text-right">
                     <button class="btn btn-warning" v-if="task.shareurl_ban" :title="task.shareurl_ban" disabled><i class="bi bi-exclamation-triangle-fill"></i></button>
                     <button type="button" class="btn btn-outline-primary" @click="runScriptNow(index)" title="运行此任务" v-else><i class="bi bi-play-fill"></i></button>
                     <button type="button" class="btn btn-outline-danger" @click="removeTask(index)" title="删除此任务"><i class="bi bi-trash3-fill"></i></button>
@@ -339,6 +344,11 @@
                         <div class="input-group-append" title="保存时只比较文件名的部分，01.mp4 和 01.mkv 视同为同一文件，不重复转存">
                           <div class="input-group-text">
                             <input type="checkbox" v-model="task.ignore_extension">&nbsp;忽略后缀
+                          </div>
+                        </div>
+                        <div class="input-group-append" title="覆盖模式：即使目标位置存在同名文件也要转存并覆盖，关闭则跳过重名文件">
+                          <div class="input-group-text">
+                            <input type="checkbox" v-model="task.overwrite_mode">&nbsp;覆盖模式
                           </div>
                         </div>
                       </div>
@@ -491,7 +501,6 @@
                         <span v-if="fileSelect.sortBy === 'updated_at'">{{ fileSelect.sortOrder === "asc" ? "↑" : "↓" }}</span>
                       </th>
                       <th scope="col" v-if="!fileSelect.selectShare">
-                        操作
                       </th>
                     </template>
                   </tr>
@@ -554,6 +563,7 @@
           enddate: "",
           addition: {},
           ignore_extension: false,
+          overwrite_mode: false,
           runweek: [1, 2, 3, 4, 5, 6, 7]
         },
         run_log: "",
@@ -849,7 +859,6 @@
           this.modalLoading = true;
           this.run_log = '';
           try {
-            // 1. 发送 POST 请求
             const response = await fetch(`/run_script_now`, {
               method: 'POST',
               headers: {
@@ -860,7 +869,6 @@
             if (!response.ok) {
               throw new Error(`HTTP error! Status: ${response.status}`);
             }
-            // 2. 处理 SSE 流
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let partialData = '';
@@ -882,7 +890,6 @@
                     break;
                   }
                   this.run_log += eventData.replace('<', '<\u200B') + '\n';
-                  // 在更新 run_log 后将滚动条滚动到底部
                   this.$nextTick(() => {
                     const modalBody = document.querySelector('.modal-body');
                     modalBody.scrollTop = modalBody.scrollHeight;
@@ -1057,7 +1064,6 @@
           this.fileSelect.fileList = [];
           this.fileSelect.paths = [];
           this.fileSelect.error = undefined;
-          // 如果分享链接发生变化，则重置 stoken
           const newShareurl = shareurl || this.formData.tasklist[index].shareurl
           if (this.getShareurl(this.fileSelect.shareurl) != this.getShareurl(newShareurl)) {
             this.fileSelect.stoken = "";

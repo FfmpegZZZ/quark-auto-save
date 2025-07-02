@@ -444,48 +444,7 @@ class Quark:
         else:
             return False
 
-    def get_growth_info(self):
-        url = f"{self.BASE_URL_APP}/1/clouddrive/capacity/growth/info"
-        querystring = {
-            "pr": "ucpro",
-            "fr": "android",
-            "kps": self.mparam.get("kps"),
-            "sign": self.mparam.get("sign"),
-            "vcode": self.mparam.get("vcode"),
-        }
-        headers = {
-            "content-type": "application/json",
-        }
-        response = self._send_request(
-            "GET", url, headers=headers, params=querystring
-        ).json()
-        if response.get("data"):
-            return response["data"]
-        else:
-            return False
 
-    def get_growth_sign(self):
-        url = f"{self.BASE_URL_APP}/1/clouddrive/capacity/growth/sign"
-        querystring = {
-            "pr": "ucpro",
-            "fr": "android",
-            "kps": self.mparam.get("kps"),
-            "sign": self.mparam.get("sign"),
-            "vcode": self.mparam.get("vcode"),
-        }
-        payload = {
-            "sign_cyclic": True,
-        }
-        headers = {
-            "content-type": "application/json",
-        }
-        response = self._send_request(
-            "POST", url, json=payload, headers=headers, params=querystring
-        ).json()
-        if response.get("data"):
-            return True, response["data"]["sign_daily_reward"]
-        else:
-            return False, response["message"]
 
     # 可验证资源是否失效
     def get_stoken(self, pwd_id, passcode=""):
@@ -884,26 +843,38 @@ class Quark:
             )
             # 正则文件名匹配
             if re.search(search_pattern, share_file["file_name"]):
+                # 检查覆盖模式
+                overwrite_mode = task.get("overwrite_mode", False)
+                
                 # 判断原文件名是否存在，处理忽略扩展名
-                if not mr.is_exists(
+                original_exists = mr.is_exists(
                     share_file["file_name"],
                     dir_filename_list,
                     (task.get("ignore_extension") and not share_file["dir"]),
-                ):
+                )
+                
+                if not original_exists or overwrite_mode:
                     # 文件夹、子目录文件不进行重命名
                     if share_file["dir"] or subdir_path:
                         share_file["file_name_re"] = share_file["file_name"]
+                        if original_exists and overwrite_mode:
+                            share_file["overwrite_original"] = True
                         need_save_list.append(share_file)
                     else:
                         # 替换后的文件名
                         file_name_re = mr.sub(pattern, replace, share_file["file_name"])
+                        
                         # 判断替换后的文件名是否存在
-                        if not mr.is_exists(
+                        renamed_exists = mr.is_exists(
                             file_name_re,
                             dir_filename_list,
                             task.get("ignore_extension"),
-                        ):
+                        )
+                        
+                        if not renamed_exists or overwrite_mode:
                             share_file["file_name_re"] = file_name_re
+                            if renamed_exists and overwrite_mode:
+                                share_file["overwrite_target"] = True
                             need_save_list.append(share_file)
                 elif share_file["dir"]:
                     # 存在并是一个目录，历遍子目录
@@ -963,18 +934,83 @@ class Quark:
             mr.set_dir_file_list(dir_file_list, replace)
             mr.sort_file_list(need_save_list)
 
+        # 处理覆盖模式：在转存前删除重名文件
+        files_to_delete = []
+        for item in need_save_list:
+            target_filename = item.get("file_name_re", item["file_name"])
+            
+            # 检查是否需要删除重名文件
+            if item.get("overwrite_original") or item.get("overwrite_target"):
+                # 在目标目录中查找重名文件
+                for dir_file in dir_file_list:
+                    if dir_file["file_name"] == target_filename:
+                        files_to_delete.append(dir_file["fid"])
+                        print(f"覆盖模式：准备删除重名文件 {target_filename} (fid: {dir_file['fid']})")
+                        break
+        
+        # 删除重名文件
+        if files_to_delete:
+            print(f"开始删除 {len(files_to_delete)} 个重名文件...")
+            delete_result = self.delete(files_to_delete)
+            print(f"删除API返回结果: {delete_result}")
+            if delete_result.get("code") == 0:
+                print(f"✓ 成功删除 {len(files_to_delete)} 个重名文件")
+                # 删除成功后等待较长时间，确保夸克服务器状态更新
+                print("等待夸克服务器状态更新（60秒）...")
+                time.sleep(60)
+                
+                # 可选：验证删除是否真的成功（重新获取目录列表检查）
+                try:
+                    updated_dir_list = self.ls_dir(to_pdir_fid)["data"]["list"]
+                    remaining_files = [f["file_name"] for f in updated_dir_list]
+                    deleted_filenames = [item.get("file_name_re", item["file_name"]) for item in need_save_list if item.get("overwrite_original") or item.get("overwrite_target")]
+                    
+                    still_exists = [name for name in deleted_filenames if name in remaining_files]
+                    if still_exists:
+                        print(f"⚠️ 警告：以下文件删除后仍然存在: {still_exists}")
+                    else:
+                        print("✓ 验证删除成功，目标文件已不存在")
+                except Exception as e:
+                    print(f"验证删除结果时出错: {e}")
+                    
+            else:
+                print(f"✗ 删除重名文件失败：{delete_result.get('message', '未知错误')}")
+                # 删除失败时也继续转存，但要提醒用户
+                print("将继续尝试转存，但可能会因重名而失败")
+        
         # 转存文件
         fid_list = [item["fid"] for item in need_save_list]
         fid_token_list = [item["share_fid_token"] for item in need_save_list]
+        
+        print(f"准备转存 {len(fid_list)} 个文件到目标目录...")
         if fid_list:
-            save_file_return = self.save_file(
-                fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken
-            )
+            # 添加重试机制，有时候夸克API需要多次尝试
+            max_retries = 3
+            for retry in range(max_retries):
+                if retry > 0:
+                    print(f"第 {retry + 1} 次尝试转存...")
+                    time.sleep(3)  # 重试前等待
+                
+                save_file_return = self.save_file(
+                    fid_list, fid_token_list, to_pdir_fid, pwd_id, stoken
+                )
+                print(f"转存API返回结果: {save_file_return}")
+                
+                if save_file_return["code"] == 0:
+                    break  # 成功则退出重试循环
+                elif retry < max_retries - 1:
+                    print(f"转存失败，将在3秒后重试 ({retry + 1}/{max_retries})")
+                else:
+                    print(f"转存失败，已重试 {max_retries} 次")
+            
             err_msg = None
             if save_file_return["code"] == 0:
+                print(f"✓ 转存API调用成功，任务ID: {save_file_return['data']['task_id']}")
                 task_id = save_file_return["data"]["task_id"]
                 query_task_return = self.query_task(task_id)
+                print(f"任务查询结果: {query_task_return}")
                 if query_task_return["code"] == 0:
+                    print(f"✓ 转存任务执行成功，共转存 {len(need_save_list)} 个文件")
                     # 建立目录树
                     for index, item in enumerate(need_save_list):
                         icon = self._get_file_icon(item)
@@ -993,10 +1029,14 @@ class Quark:
                         )
                 else:
                     err_msg = query_task_return["message"]
+                    print(f"✗ 转存任务查询失败: {err_msg}")
             else:
                 err_msg = save_file_return["message"]
+                print(f"✗ 转存API调用失败: {err_msg}")
             if err_msg:
                 add_notify(f"❌《{task['taskname']}》转存失败：{err_msg}\n")
+        else:
+            print("没有文件需要转存")
         return tree
 
     def do_rename(self, tree, node_id=None):
@@ -1031,7 +1071,7 @@ def verify_account(account):
     # 验证账号
     print(f"▶️ 验证第{account.index}个账号")
     if "__uid" not in account.cookie:
-        print(f"💡 不存在cookie必要参数，判断为仅签到")
+        print(f"💡 不存在cookie必要参数，账号可能无效")
         return False
     else:
         account_info = account.init()
@@ -1043,47 +1083,7 @@ def verify_account(account):
             return True
 
 
-def format_bytes(size_bytes: int) -> str:
-    units = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
-    i = 0
-    while size_bytes >= 1024 and i < len(units) - 1:
-        size_bytes /= 1024
-        i += 1
-    return f"{size_bytes:.2f} {units[i]}"
 
-
-def do_sign(account):
-    if not account.mparam:
-        print("⏭️ 移动端参数未设置，跳过签到")
-        print()
-        return
-    # 每日领空间
-    growth_info = account.get_growth_info()
-    if growth_info:
-        growth_message = f"💾 {'88VIP' if growth_info['88VIP'] else '普通用户'} 总空间：{format_bytes(growth_info['total_capacity'])}，签到累计获得：{format_bytes(growth_info['cap_composition'].get('sign_reward', 0))}"
-        if growth_info["cap_sign"]["sign_daily"]:
-            sign_message = f"📅 签到记录: 今日已签到+{int(growth_info['cap_sign']['sign_daily_reward']/1024/1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']}/{growth_info['cap_sign']['sign_target']})✅"
-            message = f"{sign_message}\n{growth_message}"
-            print(message)
-        else:
-            sign, sign_return = account.get_growth_sign()
-            if sign:
-                sign_message = f"📅 执行签到: 今日签到+{int(sign_return/1024/1024)}MB，连签进度({growth_info['cap_sign']['sign_progress']+1}/{growth_info['cap_sign']['sign_target']})✅"
-                message = f"{sign_message}\n{growth_message}"
-                if (
-                    str(
-                        CONFIG_DATA.get("push_config", {}).get("QUARK_SIGN_NOTIFY")
-                    ).lower()
-                    == "false"
-                    or os.environ.get("QUARK_SIGN_NOTIFY") == "false"
-                ):
-                    print(message)
-                else:
-                    message = message.replace("今日", f"[{account.nickname}]今日")
-                    add_notify(message)
-            else:
-                print(f"📅 签到异常: {sign_return}")
-    print()
 
 
 def do_save(account, tasklist=[]):
@@ -1194,7 +1194,7 @@ def main():
     if not os.path.exists(config_path):
         if os.environ.get("QUARK_COOKIE"):
             print(
-                f"⚙️ 读取到 QUARK_COOKIE 环境变量，仅签到领空间。如需执行转存，请删除该环境变量后配置 {config_path} 文件"
+                f"⚙️ 读取到 QUARK_COOKIE 环境变量，仅用于转存。如需完整功能，请删除该环境变量后配置 {config_path} 文件"
             )
             cookie_val = os.environ.get("QUARK_COOKIE")
             cookie_form_file = False
@@ -1216,23 +1216,21 @@ def main():
         print("❌ cookie 未配置")
         return
     accounts = [Quark(cookie, index) for index, cookie in enumerate(cookies)]
-    # 签到
-    print(f"===============签到任务===============")
-    if tasklist_from_env:
-        verify_account(accounts[0])
-    else:
-        for account in accounts:
-            verify_account(account)
-            do_sign(account)
+    # 验证账号
+    print(f"===============验证账号===============")
+    for account in accounts:
+        verify_account(account)
     print()
     # 转存
-    if accounts[0].is_active and cookie_form_file:
+    if cookie_form_file:
         print(f"===============转存任务===============")
         # 任务列表
-        if tasklist_from_env:
-            do_save(accounts[0], tasklist_from_env)
-        else:
-            do_save(accounts[0], CONFIG_DATA.get("tasklist", []))
+        for account in accounts:
+            if account.is_active:
+                if tasklist_from_env:
+                    do_save(account, tasklist_from_env)
+                else:
+                    do_save(account, CONFIG_DATA.get("tasklist", []))
         print()
     # 通知
     if NOTIFYS:

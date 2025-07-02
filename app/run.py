@@ -59,8 +59,8 @@ app.config["APP_VERSION"] = get_app_ver()
 app.secret_key = "ca943f6db6dd34823d36ab08d8d6f65d"
 app.config["SESSION_COOKIE_NAME"] = "QUARK_AUTO_SAVE_SESSION"
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=31)
-app.json.ensure_ascii = False
-app.json.sort_keys = False
+app.config['JSON_AS_ASCII'] = False
+app.config['JSON_SORT_KEYS'] = False
 app.jinja_env.variable_start_string = "[["
 app.jinja_env.variable_end_string = "]]"
 

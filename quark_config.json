@@ -1,9 +1,8 @@
 {
   "cookie": [
-    "Your pan.quark.cn Cookie1, Only this one will do save task."
+    "Your pan.quark.cn Cookie, Only for file transfer tasks."
   ],
   "push_config": {
-    "QUARK_SIGN_NOTIFY": true,
     "其他推送渠道//此项可删": "配置方法同青龙"
   },
   "plugins": {
@@ -38,7 +37,8 @@
       "pattern": "$TV_REGEX",
       "replace": "",
       "enddate": "2099-01-30",
-      "update_subdir": "4k|1080p"
+      "update_subdir": "4k|1080p",
+      "overwrite_mode": false
     },
     {
       "taskname": "测试-综艺命名",
